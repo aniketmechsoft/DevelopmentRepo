@@ -1,0 +1,31 @@
+name: Dev CI Workflow
+
+on:
+  push:
+    branches:
+      - DEV   # triggers only when DEV branch is updated
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout DEV
+        uses: actions/checkout@v3
+
+      - name: Set up Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Build Project
+        run: |
+          echo "Building project..."
+          mvn clean install
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: dev-build
+          path: target/*.jar   # change to your actual build output
