@@ -3,7 +3,7 @@ name: Dev CI Workflow
 on:
   push:
     branches:
-      - DEV   # triggers only when DEV branch is updated
+      - DEV
 
 jobs:
   build:
@@ -20,12 +20,10 @@ jobs:
           java-version: '17'
 
       - name: Build Project
-        run: |
-          echo "Building project..."
-          mvn clean install
+        run: mvn clean install
 
       - name: Upload Build Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: dev-build
-          path: target/*.jar   # change to your actual build output
+          path: target/*.jar
