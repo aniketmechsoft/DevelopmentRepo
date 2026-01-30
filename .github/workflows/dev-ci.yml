@@ -1,4 +1,4 @@
-name: Test Workflow
+name: Dev CI Workflow
 
 on:
   push:
@@ -16,4 +16,6 @@ jobs:
       - name: Quick Test
         run: |
           echo "This is a dummy test."
-          echo "Workflow ran successfully!"
+          echo "Waiting for 5 seconds..."
+          sleep 5
+          echo "Workflow completed successfully!"
