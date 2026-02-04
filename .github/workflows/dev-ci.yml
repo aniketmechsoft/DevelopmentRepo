@@ -1,1 +1,9 @@
-#l
+name: Always Pass
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: The Golden Step
+        run: echo "This will always succeed!" && exit 0#l
