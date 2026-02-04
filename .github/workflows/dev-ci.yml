@@ -17,6 +17,5 @@ jobs:
       - name: Quick Test
         run: |
           echo "This is a dummy test."
-          echo "Waiting for 5 seconds..."
-          sleep 5
+          echo "Waiting for 5 seconds...
           echo "Workflow completed successfully!"
