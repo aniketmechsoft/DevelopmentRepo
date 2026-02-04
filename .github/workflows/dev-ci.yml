@@ -1,21 +1,47 @@
-name: Dev CI Workflow
+name: QA Suite
 
+# Trigger workflow on PRs to DEV and optional pushes (can remove push if not needed)
 on:
+  pull_request:
+    branches:
+      - DEV
   push:
     branches:
       - DEV
 
 jobs:
-  quick-test:
+  smoke:
+    name: qa/smoke1
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout DEV
+      - name: Checkout code
         uses: actions/checkout@v3
-
-      - name: Quick Test
+      - name: Run Smoke Tests
         run: |
-          echo "This is a dummy test."
-          echo "Waiting for 5 seconds..."
-          sleep 5
-          echo "Workflow completed successfully!"
+          echo "Running smoke tests..."
+          # Add your smoke test commands here
+          sleep 5  # placeholder for actual test commands
+
+  regression:
+    name: qa/regression1
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Run Regression Tests
+        run: |
+          echo "Running regression tests..."
+          # Add your regression test commands here
+          sleep 5  # placeholder
+
+  no_run:
+    name: qa/no-run
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Run No-Run Tests
+        run: |
+          echo "Running no-run tests..."
+          # Add commands if needed, or skip
+          echo "No tests to run"
