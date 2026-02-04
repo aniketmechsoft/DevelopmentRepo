@@ -1,10 +1,6 @@
 name: QA Suite
 
 # Trigger workflow on PRs to DEV and optional pushes (can remove push if not needed)
-on:
-  pull_request:
-    branches:
-      - DEV
   push:
     branches:
       - DEV
