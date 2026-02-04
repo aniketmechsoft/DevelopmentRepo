@@ -11,7 +11,7 @@ on:
 
 jobs:
   smoke:
-    name: qa/smoke
+    name: qa/smoke1
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -23,7 +23,7 @@ jobs:
           sleep 5  # placeholder for actual test commands
 
   regression:
-    name: qa/regression
+    name: qa/regression1
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
