@@ -1,9 +1,22 @@
-name: Always Pass
-on: [push]
+
+name: Dev CI Workflow
+
+on:
+  push:
+    branches:
+      - DEV
 
 jobs:
-  build:
+  quick-test:
     runs-on: ubuntu-latest
+
     steps:
-      - name: The Golden Step
-        run: echo "This will always succeed!" && exit 0#l
+      - name: Checkout DEV
+        uses: actions/checkout@v3
+
+      - name: Quick Test
+        run: |
+          echo "This is a dummy test."
+          echo "Waiting for 5 seconds..."
+          sleep 5
+          echo "Workflow completed successfully!"
