@@ -1,6 +1,9 @@
 name: Dev CI Workflow
 
 on:
+  push:
+    branches:
+      - DEV
   pull_request:
     branches:
       - DEV
