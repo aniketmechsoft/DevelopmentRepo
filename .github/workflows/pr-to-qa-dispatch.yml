@@ -45,7 +45,7 @@ jobs:
             await github.rest.actions.createWorkflowDispatch({
               owner: 'aniketmechsoft',
               repo: 'GitActionTest',
-              workflow_id: 'run-suite.yml',
+              workflow_id: 'main.yml',
               ref: 'main',
               inputs: {
                 pr_number: '${{ github.event.pull_request.number }}',
