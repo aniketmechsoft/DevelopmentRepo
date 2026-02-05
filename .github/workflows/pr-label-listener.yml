@@ -3,7 +3,9 @@ name: PR Label Suite Selector
 
 on:
   pull_request:
-    types: [labeled]
+    types:
+      - opened
+      - labeled
 
 jobs:
   select-suite:
