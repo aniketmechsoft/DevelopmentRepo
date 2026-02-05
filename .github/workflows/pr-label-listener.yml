@@ -1,4 +1,3 @@
-
 name: PR Label Suite Selector
 
 on:
@@ -8,11 +7,28 @@ on:
       - labeled
 
 jobs:
+  # 🔒 Gate job — blocks merge if no QA label selected
+  gate:
+    if: |
+      github.event.action == 'opened' &&
+      !contains(toJson(github.event.pull_request.labels), 'qa/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Block merge until QA label is selected
+        run: |
+          echo "❌ No QA suite selected."
+          echo "Please add one of: qa/smoke1, qa/regression1, qa/no-run"
+          exit 1
+
+  # 🎯 Runs only when a valid QA label is added
   select-suite:
     if: |
-      github.event.label.name == 'qa/smoke1' ||
-      github.event.label.name == 'qa/regression1' ||
-      github.event.label.name == 'qa/no-run'
+      github.event.action == 'labeled' &&
+      (
+        github.event.label.name == 'qa/smoke1' ||
+        github.event.label.name == 'qa/regression1' ||
+        github.event.label.name == 'qa/no-run'
+      )
     runs-on: ubuntu-latest
 
     steps:
