@@ -1,4 +1,3 @@
-
 name: PR Label Suite Selector
 
 on:
@@ -8,11 +7,32 @@ on:
       - labeled
 
 jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce QA label before merge
+        run: |
+          LABELS='${{ toJson(github.event.pull_request.labels) }}'
+
+          echo "Current labels: $LABELS"
+
+          if echo "$LABELS" | grep -q 'qa/'; then
+            echo "✅ QA label found"
+            exit 0
+          else
+            echo "❌ No QA label selected"
+            echo "Add one of: qa/smoke1, qa/regression1, qa/no-run"
+            exit 1
+          fi
+
   select-suite:
     if: |
-      github.event.label.name == 'qa/smoke1' ||
-      github.event.label.name == 'qa/regression1' ||
-      github.event.label.name == 'qa/no-run'
+      github.event.action == 'labeled' &&
+      (
+        github.event.label.name == 'qa/smoke1' ||
+        github.event.label.name == 'qa/regression1' ||
+        github.event.label.name == 'qa/no-run'
+      )
     runs-on: ubuntu-latest
 
     steps:
