@@ -1,39 +1,24 @@
-name: Selenium PR Gate
+name: Debug PR Comment Event
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
   issue_comment:
     types: [created]
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
 
 jobs:
-  # Job 1: Set PR status to pending (only for PR events)
-  pr-open-pending:
-    if: github.event_name == 'pull_request'
+  debug-event:
     runs-on: ubuntu-latest
     steps:
-      - name: Set selenium-suite to pending
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            console.log("Setting PR status to pending for Selenium suite...");
-            await github.rest.repos.createCommitStatus({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              sha: context.payload.pull_request.head.sha,
-              state: 'pending',
-              context: 'selenium-suite',
-              description: 'Waiting for admin to run Selenium suite'
-            });
+      # Step 1: Dump the raw GitHub event payload
+      - name: Dump raw event payload
+        run: |
+          echo "Event JSON path: $GITHUB_EVENT_PATH"
+          cat $GITHUB_EVENT_PATH | jq .
 
-  # Job 2: Respond to /run <suite> comments safely
-  pr-comment-dispatch:
-    if: github.event_name == 'issue_comment'   # Only trigger on comment events
-    runs-on: ubuntu-latest
-    steps:
-      # Step 1: Debug full event context safely
-      - name: Dump full context for debugging
+      # Step 2: Dump context.event safely
+      - name: Dump full context
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -42,8 +27,8 @@ jobs:
             console.log("Full context.event:");
             console.log(JSON.stringify(context.event, null, 2));
 
-      # Step 2: Extract PR info safely
-      - name: Get PR number and commit SHA
+      # Step 3: Try to extract PR info safely
+      - name: Extract PR number and commit SHA
         id: pr_info
         uses: actions/github-script@v7
         with:
@@ -55,9 +40,8 @@ jobs:
             console.log("Event name:", eventName);
             console.log("Comment body:", commentBody);
 
-            // Only continue if comment exists on a PR
             if (!context.event?.issue?.pull_request) {
-              console.log("Comment is not on a PR or missing event info. Skipping step.");
+              console.log("Comment is not on a PR or missing PR info. Skipping PR extraction.");
               return { pr_number: null, commit_sha: null };
             }
 
@@ -76,31 +60,18 @@ jobs:
 
             return { pr_number, commit_sha };
 
-      # Step 3: Extract suite from comment
+      # Step 4: Extract suite from comment (optional)
       - name: Extract suite from comment
         id: suite
         run: |
-          COMMENT="${{ github.event.comment.body }}"
+          COMMENT="${{ github.event.comment.body || '' }}"
           SUITE=$(echo "$COMMENT" | awk '{print $2}' | tr '[:upper:]' '[:lower:]')
           echo "suite=$SUITE" >> $GITHUB_OUTPUT
           echo "Extracted suite: $SUITE"
 
-      # Step 4: Dispatch to testing repo if PR info exists
-      - name: Dispatch to testing repo
-        if: steps.pr_info.outputs.pr_number != null
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.QA_TRIGGER_TOKEN }}
-          script: |
-            console.log("Dispatching suite to testing repo...");
-            await github.rest.repos.createDispatchEvent({
-              owner: 'aniketmechsoft',
-              repo: 'GitActionTest',
-              event_type: 'run-selenium',
-              client_payload: {
-                suite: '${{ steps.suite.outputs.suite }}',
-                pr_number: ${{ steps.pr_info.outputs.pr_number }},
-                commit_sha: '${{ steps.pr_info.outputs.commit_sha }}'
-              }
-            });
-            console.log("Dispatch complete.");
+      # Step 5: Log all outputs
+      - name: Log outputs
+        run: |
+          echo "PR Number: ${{ steps.pr_info.outputs.pr_number }}"
+          echo "Commit SHA: ${{ steps.pr_info.outputs.commit_sha }}"
+          echo "Suite: ${{ steps.suite.outputs.suite }}"
