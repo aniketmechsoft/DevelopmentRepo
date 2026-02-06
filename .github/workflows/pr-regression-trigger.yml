@@ -2,7 +2,7 @@ name: PR Regression Trigger
 
 on:
   pull_request:
-    branches: [dev]
+    branches: [DEV]
   issue_comment:
     types: [created]
 
