@@ -6,6 +6,5 @@ Text Main():
 local
 
 h1
-h2ja
-h33dbdsasasaasasasaasa
+h2
 dsdaa
