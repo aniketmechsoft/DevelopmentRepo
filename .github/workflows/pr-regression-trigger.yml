@@ -23,7 +23,7 @@ jobs:
               sha: context.payload.pull_request.head.sha,
               state: "pending",
               context: "selenium-suite",
-              description: "Waiting for admin to run Selenium suite"
+              description: 'Waiting for admin command: /run [regression|smoke|no-run]'
             });
 
   # 2️⃣ Admin comment → decide action
@@ -144,7 +144,7 @@ jobs:
         if: steps.detect.outputs.action == 'dispatch'
         uses: peter-evans/repository-dispatch@v2
         with:
-          token: ${{ secrets.QA_TRIGGER_TOKEN }}
+          token: ${{ secrets.TEST_REPO_TOKEN }}
           repository: aniketmechsoft/GitActionTest
           event-type: run-selenium
           client-payload: |
