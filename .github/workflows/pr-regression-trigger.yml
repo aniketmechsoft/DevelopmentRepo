@@ -14,7 +14,7 @@ jobs:
     steps:
       - name: Trigger test repo workflow
         env:
-          TOKEN: ${{ secrets.TEST_REPO_TOKEN }}
+          TOKEN: ${{ secrets.QA_TRIGGER_TOKEN}}
         run: |
           curl -X POST \
             -H "Authorization: token $TOKEN" \
