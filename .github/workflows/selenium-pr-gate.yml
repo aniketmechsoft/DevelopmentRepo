@@ -80,7 +80,7 @@ jobs:
         uses: peter-evans/repository-dispatch@v2
         with:
           token: ${{ secrets.TESTING_REPO_PAT }}
-          repository: YOUR_ORG/YOUR_TESTING_REPO   # 🔴 CHANGE THIS
+          repository: aniketmechsoft/GitActionTest
           event-type: run-selenium
           client-payload: |
             {
