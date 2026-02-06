@@ -7,11 +7,68 @@ on:
     types: [created]
 
 jobs:
-  pr-comment-dispatch:
-    if: github.event_name == 'issue_comment'
+  # Job 1: Set PR status to pending
+  pr-open-pending:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - name: Debug event
+      - name: Set selenium-suite to pending
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.payload.pull_request.head.sha,
+              state: 'pending',
+              context: 'selenium-suite',
+              description: 'Waiting for admin to run Selenium suite'
+            });
+
+  # Job 2: Respond to issue comment and dispatch suite
+  pr-comment-dispatch:
+    if: >
+      github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request != null &&
+      startsWith(github.event.comment.body, '/run ')
+    runs-on: ubuntu-latest
+    steps:
+      # Step 1: Debug PR number and commit SHA
+      - name: Debug PR info
+        uses: actions/github-script@v7
+        id: pr_info
+        with:
+          script: |
+            const pr_number = context.event.issue.number;
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr_number
+            });
+            console.log("PR number:", pr_number);
+            console.log("Commit SHA:", pr.head.sha);
+            return { pr_number, commit_sha: pr.head.sha };
+
+      # Step 2: Extract suite from comment
+      - name: Extract suite
+        id: suite
         run: |
-          echo "Event: ${{ github.event_name }}"
-          echo "Comment body: '${{ github.event.comment.body }}'"
+          SUITE=$(echo "${{ github.event.comment.body }}" | cut -d' ' -f2)
+          echo "suite=$SUITE" >> $GITHUB_OUTPUT
+
+      # Step 3: Dispatch to testing repository
+      - name: Dispatch to testing repo
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.QA_TRIGGER_TOKEN }}
+          script: |
+            await github.rest.repos.createDispatchEvent({
+              owner: 'aniketmechsoft',
+              repo: 'GitActionTest',
+              event_type: 'run-selenium',
+              client_payload: {
+                suite: '${{ steps.suite.outputs.suite }}',
+                pr_number: ${{ steps.pr_info.outputs.pr_number }},
+                commit_sha: '${{ steps.pr_info.outputs.commit_sha }}'
+              }
+            });
