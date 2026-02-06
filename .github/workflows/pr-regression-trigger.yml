@@ -50,7 +50,7 @@ jobs:
 
       - name: Trigger testing repository
         env:
-          TOKEN: ${{ secrets.QA_TRIGGER_TOKEN }}
+          TOKEN: ${{ secrets.TESTING_REPO_TOKEN }}
         run: |
           curl -X POST \
             -H "Authorization: token $TOKEN" \
