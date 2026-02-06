@@ -7,7 +7,7 @@ on:
     types: [created]
 
 jobs:
-  # Job 1: Set PR status to pending
+  # Job 1: Set PR status to pending (for PR events)
   pr-open-pending:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -25,26 +25,30 @@ jobs:
               description: 'Waiting for admin to run Selenium suite'
             });
 
-  # Job 2: Respond to issue comment and dispatch suite
+  # Job 2: Respond to /run <suite> comments
   pr-comment-dispatch:
-    if: >
-      github.event_name == 'issue_comment' &&
-      github.event.issue.pull_request != null &&
-      startsWith(github.event.comment.body, '/run ')
+    if: github.event_name == 'issue_comment'   # only check event type here
     runs-on: ubuntu-latest
     steps:
-      # Step 1: Debug PR number and commit SHA safely
-      - name: Debug PR info
+      # Step 1: Debug comment and PR info safely
+      - name: Debug PR info safely
         uses: actions/github-script@v7
         id: pr_info
         with:
+          github-token: ${{ secrets.QA_TRIGGER_TOKEN }}
           script: |
-            // Ensure this comment is on a PR
+            console.log("Event name:", context.event_name);
+            console.log("Comment body:", context.event.comment?.body || "No comment body");
+
+            // Check if this comment is on a PR
             if (!context.event.issue || !context.event.issue.pull_request) {
-              throw new Error("Comment is not on a PR, cannot fetch PR number or SHA");
+              console.log("Comment is not on a PR. Exiting workflow step.");
+              return { pr_number: null, commit_sha: null };
             }
 
             const pr_number = context.event.issue.number;
+
+            // Fetch PR info safely
             const { data: pr } = await github.rest.pulls.get({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -58,19 +62,23 @@ jobs:
 
             return { pr_number, commit_sha };
 
-      # Step 2: Extract suite from comment
+      # Step 2: Extract suite from comment safely
       - name: Extract suite
         id: suite
         run: |
-          SUITE=$(echo "${{ github.event.comment.body }}" | cut -d' ' -f2)
+          COMMENT="${{ github.event.comment.body }}"
+          SUITE=$(echo "$COMMENT" | awk '{print $2}' | tr '[:upper:]' '[:lower:]')
           echo "suite=$SUITE" >> $GITHUB_OUTPUT
+          echo "Extracted suite: $SUITE"
 
-      # Step 3: Dispatch to testing repository
+      # Step 3: Dispatch to testing repo (if PR info exists)
       - name: Dispatch to testing repo
+        if: steps.pr_info.outputs.pr_number != null
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.QA_TRIGGER_TOKEN }}
           script: |
+            console.log("Dispatching suite to testing repo...");
             await github.rest.repos.createDispatchEvent({
               owner: 'aniketmechsoft',
               repo: 'GitActionTest',
@@ -81,3 +89,4 @@ jobs:
                 commit_sha: '${{ steps.pr_info.outputs.commit_sha }}'
               }
             });
+            console.log("Dispatch complete.");
