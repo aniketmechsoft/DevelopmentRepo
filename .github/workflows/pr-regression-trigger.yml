@@ -192,7 +192,7 @@ jobs:
             await github.rest.repos.createCommitStatus({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              sha: process.env.PR_SHA,
+              sha: '${{ steps.pr.outputs.sha }}',
               state: "pending",
               context: "selenium-suite",
               description: "🔄 Running ${{ steps.detect.outputs.suite }} tests... (est. ${{ steps.detect.outputs.duration }})"
