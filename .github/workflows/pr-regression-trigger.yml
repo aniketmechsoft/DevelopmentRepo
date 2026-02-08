@@ -233,7 +233,7 @@ jobs:
         continue-on-error: true  # 👈 DON'T fail the job if dispatch fails
         uses: peter-evans/repository-dispatch@v2
         with:
-          token: ${{ secrets.QA_TRIGGER_TOKEN }}
+          token: ${{ secrets.TEST_REPO_TOKEN }}
           repository: aniketmechsoft/GitActionTest
           event-type: run-selenium
           client-payload: |
