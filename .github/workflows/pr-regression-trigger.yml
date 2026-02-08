@@ -192,7 +192,7 @@ jobs:
             await github.rest.repos.createCommitStatus({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              sha: '${{ steps.pr.outputs.sha }}',
+              sha: process.env.PR_SHA,
               state: "pending",
               context: "selenium-suite",
               description: "🔄 Running ${{ steps.detect.outputs.suite }} tests... (est. ${{ steps.detect.outputs.duration }})"
@@ -276,7 +276,7 @@ jobs:
             
             **Possible causes:**
             - Testing repository is unavailable
-            - Token (\`QA_TRIGGER_TOKEN\`) is invalid or expired
+            - Token (\`TEST_REPO_TOKEN\`) is invalid or expired
             - Network connectivity issue
             
             **What to do:**
@@ -286,7 +286,7 @@ jobs:
             4. Try again with: \`/run ${suite}\`
             
             **Admin actions:**
-            - Verify \`QA_TRIGGER_TOKEN\` secret is valid
+            - Verify \`TEST_REPO_TOKEN\` secret is valid
             - Check testing repo: https://github.com/aniketmechsoft/GitActionTest`
             });
 
