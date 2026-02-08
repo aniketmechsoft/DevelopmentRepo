@@ -23,62 +23,8 @@ jobs:
               sha: context.payload.pull_request.head.sha,
               state: "pending",
               context: "selenium-suite",
-              description: "⏳ Awaiting admin command - see PR comment for instructions"
+              description: 'Waiting for admin command: /run [regression|smoke|no-run]'
             });
-      
-      - name: Post instructions comment
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const prNumber = context.payload.pull_request.number;
-            
-            const comments = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: prNumber
-            });
-            
-            const botComment = comments.data.find(comment => 
-              comment.user.type === 'Bot' && 
-              comment.body.includes('🧪 Selenium Test Suite')
-            );
-            
-            if (!botComment) {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: prNumber,
-                body: `## 🧪 Selenium Test Suite
-            
-            This PR requires Selenium testing before merge.
-            
-            ### 📋 Available Commands (Admin/Member only):
-            
-            | Command | Description | Duration |
-            |---------|-------------|----------|
-            | \`/run smoke1\` | Quick smoke tests | ~5-10 min |
-            | \`/run sanity1\` | Sanity checks | ~10-15 min |
-            | \`/run regression1\` | Full regression suite | ~30-60 min |
-            | \`/run no-run\` | Skip tests (admin override) | Instant |
-            
-            ### 🎯 How to Run:
-            
-            1. **Post a comment** with one of the commands above
-            2. Wait for the test suite to complete
-            3. Check the status and results
-            4. Merge when tests pass ✅
-            
-            ### 💡 Tips:
-            
-            - Start with \`/run smoke1\` for quick feedback
-            - Use \`/run regression1\` before final merge
-            - You can re-run tests anytime by posting the command again
-            - **Note:** Only repository admins/members can trigger tests
-            
-            ---
-            *Status will update automatically when tests complete*`
-              });
-            }
 
   # 2️⃣ Admin comment → decide action
   pr-comment-dispatch:
@@ -90,6 +36,7 @@ jobs:
        github.event.comment.author_association == 'COLLABORATOR')
     runs-on: ubuntu-latest
     steps:
+      # Detect command
       - name: Detect suite command
         id: detect
         run: |
@@ -98,24 +45,19 @@ jobs:
           if [[ "$COMMENT" =~ ^/run\ regression1$ ]]; then
             echo "suite=regression1" >> $GITHUB_OUTPUT
             echo "action=dispatch" >> $GITHUB_OUTPUT
-            echo "description=Full regression suite" >> $GITHUB_OUTPUT
-            echo "duration=30-60 min" >> $GITHUB_OUTPUT
           elif [[ "$COMMENT" =~ ^/run\ smoke1$ ]]; then
             echo "suite=smoke1" >> $GITHUB_OUTPUT
             echo "action=dispatch" >> $GITHUB_OUTPUT
-            echo "description=Quick smoke tests" >> $GITHUB_OUTPUT
-            echo "duration=5-10 min" >> $GITHUB_OUTPUT
           elif [[ "$COMMENT" =~ ^/run\ sanity1$ ]]; then
             echo "suite=sanity1" >> $GITHUB_OUTPUT
             echo "action=dispatch" >> $GITHUB_OUTPUT
-            echo "description=Sanity checks" >> $GITHUB_OUTPUT
-            echo "duration=10-15 min" >> $GITHUB_OUTPUT
           elif [[ "$COMMENT" =~ ^/run\ no-run$ ]]; then
             echo "action=pass" >> $GITHUB_OUTPUT
           else
             echo "action=invalid" >> $GITHUB_OUTPUT
           fi
 
+      # Show error for invalid commands
       - name: Comment on invalid command
         if: steps.detect.outputs.action == 'invalid'
         uses: actions/github-script@v7
@@ -125,20 +67,10 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: `❌ **Invalid command!**
-            
-            Please use one of these commands:
-            
-            | Command | Description |
-            |---------|-------------|
-            | \`/run smoke1\` | Quick smoke tests (~5-10 min) |
-            | \`/run sanity1\` | Sanity checks (~10-15 min) |
-            | \`/run regression1\` | Full regression suite (~30-60 min) |
-            | \`/run no-run\` | Skip tests (admin override) |
-            
-            💡 **Tip:** Just post a new comment with the exact command`
+              body: '❌ Invalid command. Use:\n- `/run regression1`\n- `/run smoke1`\n- `/run sanity1`\n- `/run no-run`'
             });
 
+      # Fetch PR details
       - name: Get PR details
         if: steps.detect.outputs.action != 'invalid'
         id: pr
@@ -156,34 +88,21 @@ jobs:
             core.setOutput("pr_number", context.issue.number);
             core.setOutput("branch", pr.data.head.ref);
 
+      # Acknowledge command
       - name: Acknowledge test dispatch
         if: steps.detect.outputs.action == 'dispatch'
         uses: actions/github-script@v7
         with:
           script: |
             const suite = '${{ steps.detect.outputs.suite }}';
-            const description = '${{ steps.detect.outputs.description }}';
-            const duration = '${{ steps.detect.outputs.duration }}';
-            const author = context.payload.comment.user.login;
-            
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: `🚀 **Test suite dispatched by @${author}**
-            
-            **Suite:** ${suite}
-            **Type:** ${description}
-            **Est. Duration:** ${duration}
-            
-            ⏳ Tests are running... Status will update automatically.
-            
-            [View test progress →](https://github.com/aniketmechsoft/GitActionTest/actions)
-            
-            ---
-            *You can monitor progress in the testing repository*`
+              body: `🔄 Dispatching **${suite}** suite to testing environment...\n\n[View test progress →](https://github.com/aniketmechsoft/GitActionTest/actions)`
             });
 
+      # Re-set pending (for reruns)
       - name: Set Selenium status to pending (rerun)
         if: steps.detect.outputs.action == 'dispatch'
         uses: actions/github-script@v7
@@ -195,42 +114,34 @@ jobs:
               sha: '${{ steps.pr.outputs.sha }}',
               state: "pending",
               context: "selenium-suite",
-              description: "🔄 Running ${{ steps.detect.outputs.suite }} tests... (est. ${{ steps.detect.outputs.duration }})"
+              description: "Selenium suite dispatched - running..."
             });
 
+      # ✅ no-run → direct success
       - name: Directly mark Selenium as success (no-run)
         if: steps.detect.outputs.action == 'pass'
         uses: actions/github-script@v7
         with:
           script: |
-            const author = context.payload.comment.user.login;
-            
             await github.rest.repos.createCommitStatus({
               owner: context.repo.owner,
               repo: context.repo.repo,
               sha: '${{ steps.pr.outputs.sha }}',
               state: "success",
               context: "selenium-suite",
-              description: "⚠️ Tests skipped by admin override (@${author})"
+              description: "Selenium skipped by admin (no-run)"
             });
             
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: `⚠️ **Selenium tests skipped by @${author}**
-            
-            Tests have been bypassed with admin override.
-            Manual review is required before merge.
-            
-            ✅ PR is now **eligible for merge** (pending other checks)`
+              body: '⚠️ **Selenium tests skipped by admin override.** Manual review approved.'
             });
 
       # 🚀 Dispatch to testing repo
       - name: Dispatch to testing repo
         if: steps.detect.outputs.action == 'dispatch'
-        id: dispatch
-        continue-on-error: true  # 👈 DON'T fail the job if dispatch fails
         uses: peter-evans/repository-dispatch@v2
         with:
           token: ${{ secrets.TEST_REPO_TOKEN }}
@@ -246,53 +157,3 @@ jobs:
               "dev_repo_owner": "${{ github.repository_owner }}",
               "dev_repo_name": "${{ github.event.repository.name }}"
             }
-
-      # ❌ NEW: Handle dispatch failure
-      - name: Handle dispatch failure
-        if: steps.detect.outputs.action == 'dispatch' && steps.dispatch.outcome == 'failure'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const suite = '${{ steps.detect.outputs.suite }}';
-            
-            // Set status to failure
-            await github.rest.repos.createCommitStatus({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              sha: '${{ steps.pr.outputs.sha }}',
-              state: "failure",
-              context: "selenium-suite",
-              description: "❌ Failed to dispatch tests to testing repo"
-            });
-            
-            // Comment about the failure
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: `❌ **Failed to dispatch ${suite} tests to testing repository**
-            
-            **Error:** Unable to trigger the testing workflow.
-            
-            **Possible causes:**
-            - Testing repository is unavailable
-            - Token (\`TEST_REPO_TOKEN\`) is invalid or expired
-            - Network connectivity issue
-            
-            **What to do:**
-            1. Check [workflow run logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details
-            2. Verify the testing repository is accessible
-            3. Contact repository administrator if issue persists
-            4. Try again with: \`/run ${suite}\`
-            
-            **Admin actions:**
-            - Verify \`TEST_REPO_TOKEN\` secret is valid
-            - Check testing repo: https://github.com/aniketmechsoft/GitActionTest`
-            });
-
-      # ✅ NEW: Confirm dispatch success
-      - name: Confirm dispatch success
-        if: steps.detect.outputs.action == 'dispatch' && steps.dispatch.outcome == 'success'
-        run: |
-          echo "✅ Successfully dispatched ${{ steps.detect.outputs.suite }} tests to testing repo"
-          echo "Waiting for testing repo to report back..."
