@@ -1,70 +1,99 @@
-name: Selenium Test Executor
+name: Selenium PR Gate
 
 on:
-  repository_dispatch:
-    types: [run-selenium]
+  issue_comment:
+    types: [created]
 
 jobs:
-  execute-selenium:
+  pr-comment-dispatch:
+    if: |
+      github.event.issue.pull_request &&
+      (github.event.comment.author_association == 'OWNER' || 
+       github.event.comment.author_association == 'MEMBER' ||
+       github.event.comment.author_association == 'COLLABORATOR')
     runs-on: ubuntu-latest
     steps:
-      - name: Extract payload values
-        id: setup
+      # Detect command
+      - name: Detect suite command
+        id: detect
         run: |
-          echo "sha=${{ github.event.client_payload.sha }}" >> $GITHUB_OUTPUT
-          echo "pr_number=${{ github.event.client_payload.pr_number }}" >> $GITHUB_OUTPUT
-          echo "dev_repo_owner=${{ github.event.client_payload.dev_repo_owner }}" >> $GITHUB_OUTPUT
-          echo "dev_repo_name=${{ github.event.client_payload.dev_repo_name }}" >> $GITHUB_OUTPUT
+          COMMENT="${{ github.event.comment.body }}"
+          
+          if [[ "$COMMENT" =~ ^/run\ regression1$ ]]; then
+            echo "suite=regression1" >> $GITHUB_OUTPUT
+            echo "action=dispatch" >> $GITHUB_OUTPUT
+          elif [[ "$COMMENT" =~ ^/run\ smoke1$ ]]; then
+            echo "suite=smoke1" >> $GITHUB_OUTPUT
+            echo "action=dispatch" >> $GITHUB_OUTPUT
+          elif [[ "$COMMENT" =~ ^/run\ sanity1$ ]]; then
+            echo "suite=sanity1" >> $GITHUB_OUTPUT
+            echo "action=dispatch" >> $GITHUB_OUTPUT
+          elif [[ "$COMMENT" =~ ^/run\ no-run$ ]]; then
+            echo "action=pass" >> $GITHUB_OUTPUT
+          else
+            echo "action=invalid" >> $GITHUB_OUTPUT
 
-      - name: Post pending status to DEV repo
+      # Show error for invalid commands
+      - name: Comment on invalid command
+        if: steps.detect.outputs.action == 'invalid'
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.DEV_REPO_TOKEN }}
           script: |
-            // Always post to the latest PR head commit SHA
-            await github.rest.repos.createCommitStatus({
-              owner: '${{ steps.setup.outputs.dev_repo_owner }}',
-              repo: '${{ steps.setup.outputs.dev_repo_name }}',
-              sha: '${{ steps.setup.outputs.sha }}',
-              state: 'pending',
-              context: 'selenium-suite',
-              description: 'Running Selenium tests...',
-              target_url: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: '❌ Invalid command. Use:\n- `/run regression1`\n- `/run smoke1`\n- `/run sanity1`\n- `/run no-run`'
             });
 
-      # Run your Selenium tests here...
-      # Example placeholder:
-      - name: Run Selenium tests
-        run: echo "Executing suite..."
-
-      - name: Post success status to DEV repo
-        if: success()
+      # Fetch PR details
+      - name: Get PR details
+        if: steps.detect.outputs.action != 'invalid'
+        id: pr
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.DEV_REPO_TOKEN }}
           script: |
-            await github.rest.repos.createCommitStatus({
-              owner: '${{ steps.setup.outputs.dev_repo_owner }}',
-              repo: '${{ steps.setup.outputs.dev_repo_name }}',
-              sha: '${{ steps.setup.outputs.sha }}',
-              state: 'success',
-              context: 'selenium-suite',
-              description: '✅ Selenium tests passed',
-              target_url: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
             });
+            
+            core.setOutput("sha", pr.data.head.sha);
+            core.setOutput("repo", pr.data.head.repo.full_name);
+            core.setOutput("pr_number", context.issue.number);
+            core.setOutput("branch", pr.data.head.ref);
 
-      - name: Post failure status to DEV repo
-        if: failure()
+      # Re-set pending (when dispatching tests)
+      - name: Set Selenium status to pending
+        if: steps.detect.outputs.action == 'dispatch'
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.DEV_REPO_TOKEN }}
           script: |
             await github.rest.repos.createCommitStatus({
-              owner: '${{ steps.setup.outputs.dev_repo_owner }}',
-              repo: '${{ steps.setup.outputs.dev_repo_name }}',
-              sha: '${{ steps.setup.outputs.sha }}',
-              state: 'failure',
-              context: 'selenium-suite',
-              description: '❌ Selenium tests failed',
-              target_url: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: '${{ steps.pr.outputs.sha }}',
+              state: "pending",
+              context: "selenium-suite",
+              description: "Selenium suite dispatched - running..."
             });
+
+      # 🚀 Dispatch to testing repo
+      - name: Dispatch to testing repo
+        if: steps.detect.outputs.action == 'dispatch'
+        uses: peter-evans/repository-dispatch@v2
+        with:
+          token: ${{ secrets.TEST_REPO_TOKEN }}
+          repository: aniketmechsoft/GitActionTest
+          event-type: run-selenium
+          client-payload: |
+            {
+              "suite": "${{ steps.detect.outputs.suite }}",
+              "sha": "${{ steps.pr.outputs.sha }}",
+              "repo": "${{ steps.pr.outputs.repo }}",
+              "pr_number": "${{ steps.pr.outputs.pr_number }}",
+              "branch": "${{ steps.pr.outputs.branch }}",
+              "dev_repo_owner": "${{ github.repository_owner }}",
+              "dev_repo_name": "${{ github.event.repository.name }}"
+            }
