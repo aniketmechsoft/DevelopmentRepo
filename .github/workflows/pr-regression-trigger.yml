@@ -144,7 +144,7 @@ jobs:
         if: steps.detect.outputs.action == 'dispatch'
         uses: peter-evans/repository-dispatch@v2
         with:
-          token: ${{ secrets.TEST_REPO_TOKEN }}
+          token: ${{ secrets.TEST_REPO_MERGE }}
           repository: aniketmechsoft/GitActionTest
           event-type: run-selenium
           client-payload: |
