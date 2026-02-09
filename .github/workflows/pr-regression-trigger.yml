@@ -113,7 +113,7 @@ jobs:
               repo: context.repo.repo,
               sha: '${{ steps.pr.outputs.sha }}',
               state: "pending",
-              context: "selenium-suite",
+              context: "execute-selenium",
               description: "Selenium suite dispatched - running..."
             });
 
@@ -128,7 +128,7 @@ jobs:
               repo: context.repo.repo,
               sha: '${{ steps.pr.outputs.sha }}',
               state: "success",
-              context: "selenium-suite",
+              context: "execute-selenium",
               description: "Selenium skipped by admin (no-run)"
             });
             
