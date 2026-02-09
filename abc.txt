@@ -11,6 +11,6 @@ dsdaa
 <<<<<<< HEAD
 KJSAD
 LKAUS
-=======
 KJSAD
->>>>>>> d52825496f1643ff08b2bb98e01a639ccd22bb09
+ANiet
+
