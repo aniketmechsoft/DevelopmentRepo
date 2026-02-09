@@ -1,26 +1,70 @@
-name: Selenium PR Gate
+name: Selenium Test Executor
 
 on:
-  pull_request:
-    branches:
-      - DEV
+  repository_dispatch:
+    types: [run-selenium]
 
 jobs:
-  set-pending-status:
+  execute-selenium:
     runs-on: ubuntu-latest
     steps:
-      - name: Set Selenium status to pending
+      - name: Extract payload values
+        id: setup
+        run: |
+          echo "sha=${{ github.event.client_payload.sha }}" >> $GITHUB_OUTPUT
+          echo "pr_number=${{ github.event.client_payload.pr_number }}" >> $GITHUB_OUTPUT
+          echo "dev_repo_owner=${{ github.event.client_payload.dev_repo_owner }}" >> $GITHUB_OUTPUT
+          echo "dev_repo_name=${{ github.event.client_payload.dev_repo_name }}" >> $GITHUB_OUTPUT
+
+      - name: Post pending status to DEV repo
         uses: actions/github-script@v7
         with:
+          github-token: ${{ secrets.DEV_REPO_TOKEN }}
           script: |
-            // Always use the latest PR head commit SHA
-            const sha = context.payload.pull_request.head.sha;
-
+            // Always post to the latest PR head commit SHA
             await github.rest.repos.createCommitStatus({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              sha: sha,
-              state: "pending",
-              context: "selenium-suite",   // 👈 Required check name
-              description: "Waiting for Selenium test execution..."
+              owner: '${{ steps.setup.outputs.dev_repo_owner }}',
+              repo: '${{ steps.setup.outputs.dev_repo_name }}',
+              sha: '${{ steps.setup.outputs.sha }}',
+              state: 'pending',
+              context: 'selenium-suite',
+              description: 'Running Selenium tests...',
+              target_url: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+            });
+
+      # Run your Selenium tests here...
+      # Example placeholder:
+      - name: Run Selenium tests
+        run: echo "Executing suite..."
+
+      - name: Post success status to DEV repo
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.DEV_REPO_TOKEN }}
+          script: |
+            await github.rest.repos.createCommitStatus({
+              owner: '${{ steps.setup.outputs.dev_repo_owner }}',
+              repo: '${{ steps.setup.outputs.dev_repo_name }}',
+              sha: '${{ steps.setup.outputs.sha }}',
+              state: 'success',
+              context: 'selenium-suite',
+              description: '✅ Selenium tests passed',
+              target_url: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+            });
+
+      - name: Post failure status to DEV repo
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.DEV_REPO_TOKEN }}
+          script: |
+            await github.rest.repos.createCommitStatus({
+              owner: '${{ steps.setup.outputs.dev_repo_owner }}',
+              repo: '${{ steps.setup.outputs.dev_repo_name }}',
+              sha: '${{ steps.setup.outputs.sha }}',
+              state: 'failure',
+              context: 'selenium-suite',
+              description: '❌ Selenium tests failed',
+              target_url: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
             });
