@@ -8,7 +8,6 @@ on:
     types: [created]
 
 jobs:
-  # 1️⃣ PR opened → set pending status
   pr-open-pending:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -26,17 +25,17 @@ jobs:
               description: 'Waiting for admin command: /run [regression|smoke|no-run]'
             });
 
-  # 2️⃣ Admin comment → decide action
   pr-comment-dispatch:
     if: |
       github.event_name == 'issue_comment' && 
       github.event.issue.pull_request &&
+      github.event.comment.user.type != 'Bot' &&
+      startsWith(github.event.comment.body, '/run ') &&
       (github.event.comment.author_association == 'OWNER' || 
        github.event.comment.author_association == 'MEMBER' ||
        github.event.comment.author_association == 'COLLABORATOR')
     runs-on: ubuntu-latest
     steps:
-      # Detect command
       - name: Detect suite command
         id: detect
         run: |
@@ -57,7 +56,6 @@ jobs:
             echo "action=invalid" >> $GITHUB_OUTPUT
           fi
 
-      # Show error for invalid commands
       - name: Comment on invalid command
         if: steps.detect.outputs.action == 'invalid'
         uses: actions/github-script@v7
@@ -70,7 +68,6 @@ jobs:
               body: '❌ Invalid command. Use:\n- `/run regression1`\n- `/run smoke1`\n- `/run sanity1`\n- `/run no-run`'
             });
 
-      # Fetch PR details
       - name: Get PR details
         if: steps.detect.outputs.action != 'invalid'
         id: pr
@@ -88,7 +85,6 @@ jobs:
             core.setOutput("pr_number", context.issue.number);
             core.setOutput("branch", pr.data.head.ref);
 
-      # Acknowledge command
       - name: Acknowledge test dispatch
         if: steps.detect.outputs.action == 'dispatch'
         uses: actions/github-script@v7
@@ -102,7 +98,6 @@ jobs:
               body: `🔄 Dispatching **${suite}** suite to testing environment...\n\n[View test progress →](https://github.com/aniketmechsoft/GitActionTest/actions)`
             });
 
-      # Re-set pending (for reruns)
       - name: Set Selenium status to pending (rerun)
         if: steps.detect.outputs.action == 'dispatch'
         uses: actions/github-script@v7
@@ -117,7 +112,6 @@ jobs:
               description: "Selenium suite dispatched - running..."
             });
 
-      # ✅ no-run → direct success
       - name: Directly mark Selenium as success (no-run)
         if: steps.detect.outputs.action == 'pass'
         uses: actions/github-script@v7
@@ -139,7 +133,6 @@ jobs:
               body: '⚠️ **Selenium tests skipped by admin override.** Manual review approved.'
             });
 
-      # 🚀 Dispatch to testing repo
       - name: Dispatch to testing repo
         if: steps.detect.outputs.action == 'dispatch'
         uses: peter-evans/repository-dispatch@v2
