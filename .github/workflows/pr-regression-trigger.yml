@@ -116,7 +116,28 @@ jobs:
               context: "selenium-suite",
               description: "Selenium suite dispatched - running..."
             });
+
+      # ✅ no-run → direct success
+      - name: Directly mark Selenium as success (no-run)
+        if: steps.detect.outputs.action == 'pass'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: '${{ steps.pr.outputs.sha }}',
+              state: "success",
+              context: "selenium-suite",
+              description: "Selenium skipped by admin (no-run)"
+            });
             
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: '⚠️ **Selenium tests skipped by admin override.** Manual review approved.'
+            });
 
       # 🚀 Dispatch to testing repo
       - name: Dispatch to testing repo
