@@ -8,6 +8,3 @@ local
 h1
 h2
 dsdaa
-HO2 assasa cad
-Firex
-chrome 
