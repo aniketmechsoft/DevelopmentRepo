@@ -13,42 +13,7 @@ jobs:
        github.event.comment.author_association == 'COLLABORATOR')
     runs-on: ubuntu-latest
     steps:
-      # Detect command
-      - name: Detect suite command
-        id: detect
-        run: |
-          COMMENT="${{ github.event.comment.body }}"
-          
-          if [[ "$COMMENT" =~ ^/run\ regression1$ ]]; then
-            echo "suite=regression1" >> $GITHUB_OUTPUT
-            echo "action=dispatch" >> $GITHUB_OUTPUT
-          elif [[ "$COMMENT" =~ ^/run\ smoke1$ ]]; then
-            echo "suite=smoke1" >> $GITHUB_OUTPUT
-            echo "action=dispatch" >> $GITHUB_OUTPUT
-          elif [[ "$COMMENT" =~ ^/run\ sanity1$ ]]; then
-            echo "suite=sanity1" >> $GITHUB_OUTPUT
-            echo "action=dispatch" >> $GITHUB_OUTPUT
-          elif [[ "$COMMENT" =~ ^/run\ no-run$ ]]; then
-            echo "action=pass" >> $GITHUB_OUTPUT
-          else
-            echo "action=invalid" >> $GITHUB_OUTPUT
-
-      # Show error for invalid commands
-      - name: Comment on invalid command
-        if: steps.detect.outputs.action == 'invalid'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: '❌ Invalid command. Use:\n- `/run regression1`\n- `/run smoke1`\n- `/run sanity1`\n- `/run no-run`'
-            });
-
-      # Fetch PR details
       - name: Get PR details
-        if: steps.detect.outputs.action != 'invalid'
         id: pr
         uses: actions/github-script@v7
         with:
@@ -58,15 +23,12 @@ jobs:
               repo: context.repo.repo,
               pull_number: context.issue.number
             });
-            
             core.setOutput("sha", pr.data.head.sha);
             core.setOutput("repo", pr.data.head.repo.full_name);
             core.setOutput("pr_number", context.issue.number);
             core.setOutput("branch", pr.data.head.ref);
 
-      # Re-set pending (when dispatching tests)
       - name: Set Selenium status to pending
-        if: steps.detect.outputs.action == 'dispatch'
         uses: actions/github-script@v7
         with:
           script: |
@@ -79,9 +41,7 @@ jobs:
               description: "Selenium suite dispatched - running..."
             });
 
-      # 🚀 Dispatch to testing repo
       - name: Dispatch to testing repo
-        if: steps.detect.outputs.action == 'dispatch'
         uses: peter-evans/repository-dispatch@v2
         with:
           token: ${{ secrets.TEST_REPO_TOKEN }}
@@ -89,7 +49,7 @@ jobs:
           event-type: run-selenium
           client-payload: |
             {
-              "suite": "${{ steps.detect.outputs.suite }}",
+              "suite": "smoke1",
               "sha": "${{ steps.pr.outputs.sha }}",
               "repo": "${{ steps.pr.outputs.repo }}",
               "pr_number": "${{ steps.pr.outputs.pr_number }}",
