@@ -1,29 +1,138 @@
-name: PR Comment Test Trigger
+name: Selenium PR Gate
 
 on:
+  pull_request:
+    branches:
+      - DEV
   issue_comment:
     types: [created]
 
 jobs:
-  trigger-tests:
-    if: |
-      github.event.issue.pull_request &&
-      contains(github.event.comment.body, '/run-tests')
+  # 1️⃣ PR opened → set pending status
+  pr-open-pending:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-
     steps:
-      - name: Trigger test repo workflow
-        env:
-          TOKEN: ${{ secrets.TEST_REPO_TOKEN }}
+      - name: Set Selenium status to pending
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.payload.pull_request.head.sha,
+              state: "pending",
+              context: "selenium-suite",
+              description: 'Waiting for admin command: /run [regression|smoke|no-run]'
+            });
+
+  # 2️⃣ Admin comment → decide action
+  pr-comment-dispatch:
+    if: |
+      github.event_name == 'issue_comment' && 
+      github.event.issue.pull_request &&
+      (github.event.comment.author_association == 'OWNER' || 
+       github.event.comment.author_association == 'MEMBER' ||
+       github.event.comment.author_association == 'COLLABORATOR')
+    runs-on: ubuntu-latest
+    steps:
+      # Detect command
+      - name: Detect suite command
+        id: detect
         run: |
-          curl -X POST \
-            -H "Authorization: token $TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-           https://api.github.com/repos/aniketmechsoft/GitActionTest/dispatches \
-            -d '{
-              "event_type": "run-tests",
-              "client_payload": {
-                "pr_number": "${{ github.event.issue.number }}",
-                "sha": "${{ github.event.pull_request.head.sha }}"
-              }
-            }'
+          COMMENT="${{ github.event.comment.body }}"
+          
+          if [[ "$COMMENT" =~ ^/run\ regression1$ ]]; then
+            echo "suite=regression1" >> $GITHUB_OUTPUT
+            echo "action=dispatch" >> $GITHUB_OUTPUT
+          elif [[ "$COMMENT" =~ ^/run\ smoke1$ ]]; then
+            echo "suite=smoke1" >> $GITHUB_OUTPUT
+            echo "action=dispatch" >> $GITHUB_OUTPUT
+          elif [[ "$COMMENT" =~ ^/run\ sanity1$ ]]; then
+            echo "suite=sanity1" >> $GITHUB_OUTPUT
+            echo "action=dispatch" >> $GITHUB_OUTPUT
+          elif [[ "$COMMENT" =~ ^/run\ no-run$ ]]; then
+            echo "action=pass" >> $GITHUB_OUTPUT
+          else
+            echo "action=invalid" >> $GITHUB_OUTPUT
+          fi
+
+      # Show error for invalid commands
+      - name: Comment on invalid command
+        if: steps.detect.outputs.action == 'invalid'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: '❌ Invalid command. Use:\n- `/run regression1`\n- `/run smoke1`\n- `/run sanity1`\n- `/run no-run`'
+            });
+
+      # Fetch PR details
+      - name: Get PR details
+        if: steps.detect.outputs.action != 'invalid'
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            
+            core.setOutput("sha", pr.data.head.sha);
+            core.setOutput("repo", pr.data.head.repo.full_name);
+            core.setOutput("pr_number", context.issue.number);
+            core.setOutput("branch", pr.data.head.ref);
+
+      # Acknowledge command
+      - name: Acknowledge test dispatch
+        if: steps.detect.outputs.action == 'dispatch'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const suite = '${{ steps.detect.outputs.suite }}';
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `🔄 Dispatching **${suite}** suite to testing environment...\n\n[View test progress →](https://github.com/aniketmechsoft/GitActionTest/actions)`
+            });
+
+      # Re-set pending (for reruns)
+      - name: Set Selenium status to pending (rerun)
+        if: steps.detect.outputs.action == 'dispatch'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: '${{ steps.pr.outputs.sha }}',
+              state: "pending",
+              context: "selenium-suite",
+              description: "Selenium suite dispatched - running..."
+            });
+            
+
+      # 🚀 Dispatch to testing repo
+      - name: Dispatch to testing repo
+        if: steps.detect.outputs.action == 'dispatch'
+        uses: peter-evans/repository-dispatch@v2
+        with:
+          token: ${{ secrets.TEST_REPO_TOKEN }}
+          repository: aniketmechsoft/GitActionTest
+          event-type: run-selenium
+          client-payload: |
+            {
+              "suite": "${{ steps.detect.outputs.suite }}",
+              "sha": "${{ steps.pr.outputs.sha }}",
+              "repo": "${{ steps.pr.outputs.repo }}",
+              "pr_number": "${{ steps.pr.outputs.pr_number }}",
+              "branch": "${{ steps.pr.outputs.branch }}",
+              "dev_repo_owner": "${{ github.repository_owner }}",
+              "dev_repo_name": "${{ github.event.repository.name }}"
+            }
