@@ -14,4 +14,8 @@ LKAUS
 KJSAD
 ANiet
 KAI
+<<<<<<< HEAD
+kas
+=======
+>>>>>>> 92f105cfa67cd435f5c8af8e9290d51a18e6bb5b
 
