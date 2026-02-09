@@ -8,9 +8,10 @@ local
 h1
 h2
 dsdaa
-<<<<<<< HEAD
+
 KJSAD
 LKAUS
 KJSAD
 ANiet
+KAI
 
