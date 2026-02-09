@@ -23,8 +23,58 @@ jobs:
               sha: context.payload.pull_request.head.sha,
               state: "pending",
               context: "selenium-suite",
-              description: 'Waiting for admin command: /run [regression|smoke|no-run]'
+              description: "⏳ Awaiting admin command"
             });
+      
+      - name: Post instructions and notify admin
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            const prAuthor = context.payload.pull_request.user.login;
+            
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber
+            });
+            
+            const botComment = comments.data.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('🧪 Selenium Test Suite')
+            );
+            
+            if (!botComment) {
+              const admins = ['aniketmechsoft']; // 👈 REPLACE with your admin usernames
+              const adminMentions = admins.map(a => `@${a}`).join(' ');
+              
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: `## 🧪 Selenium Test Suite Required
+            
+            **Attention:** ${adminMentions}
+            
+            PR by @${prAuthor} requires Selenium testing before merge.
+            
+            ### 📋 Available Commands (Admin/Member only):
+            
+            | Command | Description | Duration |
+            |---------|-------------|----------|
+            | \`/run smoke1\` | Quick smoke tests | ~5-10 min |
+            | \`/run sanity1\` | Sanity checks | ~10-15 min |
+            | \`/run regression1\` | Full regression suite | ~30-60 min |
+            | \`/run no-run\` | Skip tests (admin override) | Instant |
+            
+            ### 🎯 How to Run:
+            
+            Simply post a comment with one of the commands above.
+            
+            ---
+            *No further emails will be sent until tests complete.*`
+              });
+            }
 
   # 2️⃣ Admin comment → decide action
   pr-comment-dispatch:
@@ -36,28 +86,41 @@ jobs:
        github.event.comment.author_association == 'COLLABORATOR')
     runs-on: ubuntu-latest
     steps:
-      # Detect command
       - name: Detect suite command
         id: detect
         run: |
           COMMENT="${{ github.event.comment.body }}"
           
+          # 🔍 Check if comment starts with /run
+          if [[ ! "$COMMENT" =~ ^/run ]]; then
+            echo "action=ignore" >> $GITHUB_OUTPUT
+            echo "Not a /run command, ignoring"
+            exit 0
+          fi
+          
+          # 🔍 Parse which suite
           if [[ "$COMMENT" =~ ^/run\ regression1$ ]]; then
             echo "suite=regression1" >> $GITHUB_OUTPUT
             echo "action=dispatch" >> $GITHUB_OUTPUT
+            echo "description=Full regression suite" >> $GITHUB_OUTPUT
+            echo "duration=30-60 min" >> $GITHUB_OUTPUT
           elif [[ "$COMMENT" =~ ^/run\ smoke1$ ]]; then
             echo "suite=smoke1" >> $GITHUB_OUTPUT
             echo "action=dispatch" >> $GITHUB_OUTPUT
+            echo "description=Quick smoke tests" >> $GITHUB_OUTPUT
+            echo "duration=5-10 min" >> $GITHUB_OUTPUT
           elif [[ "$COMMENT" =~ ^/run\ sanity1$ ]]; then
             echo "suite=sanity1" >> $GITHUB_OUTPUT
             echo "action=dispatch" >> $GITHUB_OUTPUT
+            echo "description=Sanity checks" >> $GITHUB_OUTPUT
+            echo "duration=10-15 min" >> $GITHUB_OUTPUT
           elif [[ "$COMMENT" =~ ^/run\ no-run$ ]]; then
             echo "action=pass" >> $GITHUB_OUTPUT
           else
             echo "action=invalid" >> $GITHUB_OUTPUT
           fi
 
-      # Show error for invalid commands
+      # ❌ Show error ONLY if action=invalid
       - name: Comment on invalid command
         if: steps.detect.outputs.action == 'invalid'
         uses: actions/github-script@v7
@@ -67,12 +130,20 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: '❌ Invalid command. Use:\n- `/run regression1`\n- `/run smoke1`\n- `/run sanity1`\n- `/run no-run`'
+              body: `❌ **Invalid command!**
+            
+            Please use one of these commands:
+            
+            | Command | Description |
+            |---------|-------------|
+            | \`/run smoke1\` | Quick smoke tests (~5-10 min) |
+            | \`/run sanity1\` | Sanity checks (~10-15 min) |
+            | \`/run regression1\` | Full regression suite (~30-60 min) |
+            | \`/run no-run\` | Skip tests (admin override) |`
             });
 
-      # Fetch PR details
       - name: Get PR details
-        if: steps.detect.outputs.action != 'invalid'
+        if: steps.detect.outputs.action != 'invalid' && steps.detect.outputs.action != 'ignore'
         id: pr
         uses: actions/github-script@v7
         with:
@@ -88,21 +159,26 @@ jobs:
             core.setOutput("pr_number", context.issue.number);
             core.setOutput("branch", pr.data.head.ref);
 
-      # Acknowledge command
       - name: Acknowledge test dispatch
         if: steps.detect.outputs.action == 'dispatch'
         uses: actions/github-script@v7
         with:
           script: |
             const suite = '${{ steps.detect.outputs.suite }}';
+            const description = '${{ steps.detect.outputs.description }}';
+            const duration = '${{ steps.detect.outputs.duration }}';
+            
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: `🔄 Dispatching **${suite}** suite to testing environment...\n\n[View test progress →](https://github.com/aniketmechsoft/GitActionTest/actions)`
+              body: `🔄 **${suite}** tests dispatched
+            
+            ⏳ Running ${description} (est. ${duration})
+            
+            [View progress →](https://github.com/aniketmechsoft/GitActionTest/actions)`
             });
 
-      # Re-set pending (for reruns)
       - name: Set Selenium status to pending (rerun)
         if: steps.detect.outputs.action == 'dispatch'
         uses: actions/github-script@v7
@@ -113,11 +189,10 @@ jobs:
               repo: context.repo.repo,
               sha: '${{ steps.pr.outputs.sha }}',
               state: "pending",
-              context: "execute-selenium",
-              description: "Selenium suite dispatched - running..."
+              context: "selenium-suite",
+              description: "🔄 Running ${{ steps.detect.outputs.suite }} tests..."
             });
 
-      # ✅ no-run → direct success
       - name: Directly mark Selenium as success (no-run)
         if: steps.detect.outputs.action == 'pass'
         uses: actions/github-script@v7
@@ -128,23 +203,27 @@ jobs:
               repo: context.repo.repo,
               sha: '${{ steps.pr.outputs.sha }}',
               state: "success",
-              context: "execute-selenium",
-              description: "Selenium skipped by admin (no-run)"
+              context: "selenium-suite",
+              description: "⚠️ Tests skipped by admin override"
             });
             
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: '⚠️ **Selenium tests skipped by admin override.** Manual review approved.'
+              body: `⚠️ **Selenium tests skipped**
+            
+            Tests bypassed with admin override.
+            ✅ PR is now eligible for merge`
             });
 
-      # 🚀 Dispatch to testing repo
       - name: Dispatch to testing repo
         if: steps.detect.outputs.action == 'dispatch'
+        id: dispatch
+        continue-on-error: true
         uses: peter-evans/repository-dispatch@v2
         with:
-          token: ${{ secrets.TEST_REPO_TOKEN }}
+          token: ${{ secrets.QA_TRIGGER_TOKEN }}
           repository: aniketmechsoft/GitActionTest
           event-type: run-selenium
           client-payload: |
@@ -157,3 +236,37 @@ jobs:
               "dev_repo_owner": "${{ github.repository_owner }}",
               "dev_repo_name": "${{ github.event.repository.name }}"
             }
+
+      - name: Handle dispatch failure
+        if: steps.detect.outputs.action == 'dispatch' && steps.dispatch.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const suite = '${{ steps.detect.outputs.suite }}';
+            
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: '${{ steps.pr.outputs.sha }}',
+              state: "failure",
+              context: "selenium-suite",
+              description: "❌ Failed to dispatch tests"
+            });
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `❌ **Failed to dispatch ${suite} tests**
+            
+            Unable to trigger testing workflow.
+            
+            **Try again:** \`/run ${suite}\`
+            
+            [Check logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})`
+            });
+
+      - name: Confirm dispatch success
+        if: steps.detect.outputs.action == 'dispatch' && steps.dispatch.outcome == 'success'
+        run: |
+          echo "✅ Successfully dispatched ${{ steps.detect.outputs.suite }} tests"
