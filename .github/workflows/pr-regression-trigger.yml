@@ -131,7 +131,7 @@ jobs:
               sha,
               state: "pending",
               context: "selenium-suite-gitapp",
-              description: "🔄 Running ${{ steps.detect.outputs.suite }} tests..."
+              description: "Running ${{ steps.detect.outputs.suite }} tests..."
             });
 
             await github.rest.issues.createComment({
