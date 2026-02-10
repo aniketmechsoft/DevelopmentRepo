@@ -16,8 +16,6 @@ ANiet
 KAI
 kas
 lal
-<<<<<<< HEAD
-laks
-=======
->>>>>>> 9fd0a0b137bb4827ba809c82d8842dc8fbbaa9bb
+ALl
+KLAIS
 
