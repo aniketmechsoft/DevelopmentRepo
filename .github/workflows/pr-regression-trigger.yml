@@ -16,9 +16,7 @@ permissions:
   issues: write
 
 jobs:
-  # -----------------------------
   # 1️⃣ When PR is opened → set status to PENDING
-  # -----------------------------
   pr-open-pending:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -33,12 +31,10 @@ jobs:
               sha: context.payload.pull_request.head.sha,
               state: "pending",
               context: "selenium-suite-gitapp",
-              description: "Waiting for admin command: /run regression1 | smoke1 | sanity1 | no-run"
+              description: "⏳ Awaiting admin command: /run [suite]"
             });
 
-  # -----------------------------
   # 2️⃣ Handle admin /run commands
-  # -----------------------------
   pr-comment-dispatch:
     if: |
       github.event_name == 'issue_comment' &&
@@ -51,9 +47,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # -----------------------------
-      # Detect command
-      # -----------------------------
       - name: Detect suite command
         id: detect
         run: |
@@ -74,9 +67,6 @@ jobs:
             echo "action=invalid" >> $GITHUB_OUTPUT
           fi
 
-      # -----------------------------
-      # Invalid command feedback
-      # -----------------------------
       - name: Invalid command comment
         if: steps.detect.outputs.action == 'invalid'
         uses: actions/github-script@v7
@@ -86,12 +76,9 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: "❌ Invalid command.\n\nUse one of:\n- `/run regression1`\n- `/run smoke1`\n- `/run sanity1`\n- `/run no-run`"
+              body: "❌ **Invalid command**\n\nUse:\n- `/run regression1`\n- `/run smoke1`\n- `/run sanity1`\n- `/run no-run`"
             });
 
-      # -----------------------------
-      # Get PR details
-      # -----------------------------
       - name: Get PR details
         if: steps.detect.outputs.action != 'invalid'
         id: pr
@@ -109,10 +96,7 @@ jobs:
             core.setOutput("branch", pr.data.head.ref);
             core.setOutput("pr_number", context.issue.number);
 
-      # -----------------------------
-      # Dispatch Selenium run
-      # -----------------------------
-      - name: Mark Selenium as running
+      - name: Acknowledge dispatch
         if: steps.detect.outputs.action == 'dispatch'
         uses: actions/github-script@v7
         with:
@@ -123,7 +107,14 @@ jobs:
               sha: "${{ steps.pr.outputs.sha }}",
               state: "pending",
               context: "selenium-suite-gitapp",
-              description: "Selenium suite running..."
+              description: "🔄 Running ${{ steps.detect.outputs.suite }} tests..."
+            });
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: "🚀 **${{ steps.detect.outputs.suite }}** tests dispatched\n\n[View progress →](https://github.com/aniketmechsoft/GitActionTest/actions)"
             });
 
       - name: Dispatch to testing repo
@@ -139,12 +130,11 @@ jobs:
               "sha": "${{ steps.pr.outputs.sha }}",
               "repo": "${{ steps.pr.outputs.repo }}",
               "pr_number": "${{ steps.pr.outputs.pr_number }}",
-              "branch": "${{ steps.pr.outputs.branch }}"
+              "branch": "${{ steps.pr.outputs.branch }}",
+              "dev_repo_owner": "${{ github.repository_owner }}",
+              "dev_repo_name": "${{ github.event.repository.name }}"
             }
 
-      # -----------------------------
-      # Admin override → allow merge
-      # -----------------------------
       - name: Mark Selenium as success (no-run)
         if: steps.detect.outputs.action == 'pass'
         uses: actions/github-script@v7
@@ -156,12 +146,12 @@ jobs:
               sha: "${{ steps.pr.outputs.sha }}",
               state: "success",
               context: "selenium-suite-gitapp",
-              description: "Selenium skipped by admin (no-run)"
+              description: "⚠️ Tests skipped - admin override"
             });
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: "⚠️ Selenium tests skipped by admin approval."
+              body: "⚠️ **Selenium tests skipped by admin override**\n\nPR approved without testing."
             });
