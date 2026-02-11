@@ -75,7 +75,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: "**Invalid command**\n\nUse:\n- `/run regression1`\n- `/run smoke1`\n- `/run sanity1`\n- `/run no-run`"
+              body: "**Invalid command**\n\nUse:\n* `/run regression1` - Detailed test - 60 to 80 min\n* `/run smoke1` - Quick Test - 10 to 15 min\n* `/run sanity1` - Standard test - 20 to 30 min\n* `/run no-run` -Skip Testing..!"
             });
 
       - name: Get PR details
