@@ -11,5 +11,12 @@ dsdaa
 JDA
 KRA
 DRA
+<<<<<<< HEAD
+LKA
+DM
+Commit
+ssdasd
+=======
 LK
 
+>>>>>>> 64f2b1a209f08ee090bfc23b3e981b8ed0903171
