@@ -30,7 +30,7 @@ jobs:
               sha: context.payload.pull_request.head.sha,
               state: "pending",
               context: "selenium-suite-gitapp",
-              description: "⏳ Awaiting admin command: /run [suite]"
+              description: "Awaiting admin command: /run [suite]"
             });
 
   pr-comment-dispatch:
@@ -61,7 +61,7 @@ jobs:
             echo "action=dispatch" >> $GITHUB_OUTPUT
           elif [[ "$COMMENT" == "/run no-run" ]]; then
             echo "suite=no-run" >> $GITHUB_OUTPUT
-            echo "action=dispatch" >> $GITHUB_OUTPUT  # ✅ Changed from 'pass' to 'dispatch'
+            echo "action=dispatch" >> $GITHUB_OUTPUT  # Changed from 'pass' to 'dispatch'
           else
             echo "action=invalid" >> $GITHUB_OUTPUT
           fi
@@ -75,7 +75,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: "❌ **Invalid command**\n\nUse:\n- `/run regression1`\n- `/run smoke1`\n- `/run sanity1`\n- `/run no-run`"
+              body: "**Invalid command**\n\nUse:\n- `/run regression1`\n- `/run smoke1`\n- `/run sanity1`\n- `/run no-run`"
             });
 
       - name: Get PR details
@@ -100,8 +100,8 @@ jobs:
           script: |
             const suite = '${{ steps.detect.outputs.suite }}';
             const message = suite === 'no-run' 
-              ? '⚠️ **Admin override** - skipping tests'
-              : `🚀 **${suite}** tests dispatched`;
+              ? '**Admin override** - skipping tests'
+              : `**${suite}** tests dispatched`;
             
             await github.rest.issues.createComment({
               owner: context.repo.owner,
@@ -126,8 +126,3 @@ jobs:
               "dev_repo_owner": "${{ github.repository_owner }}",
               "dev_repo_name": "${{ github.event.repository.name }}"
             }
-
-      # ❌ REMOVE THIS STEP - no longer needed!
-      # - name: Mark Selenium as success (no-run)
-      #   if: steps.detect.outputs.action == 'pass'
-      #   ...
