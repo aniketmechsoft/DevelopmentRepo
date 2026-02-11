@@ -3,3 +3,4 @@ Text Main():1
 Text Main():
 
 No run
+Smoke failed then skip
