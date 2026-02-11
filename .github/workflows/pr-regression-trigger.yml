@@ -94,7 +94,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: "**Invalid command**\n\nUse:\n- /run regression1\n- /run smoke1\n- /run sanity1\n- /run no-run"
+              body: "**Invalid command**\n\nUse:\n- `/run regression1`\n- `/run smoke1`\n- `/run sanity1`\n- `/run no-run`"
             });
 
       - name: Get PR details
