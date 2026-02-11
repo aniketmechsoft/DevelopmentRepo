@@ -12,5 +12,9 @@ JDA
 KRA
 DRA
 LKA
+<<<<<<< HEAD
 DM
 Commit
+=======
+DM
+>>>>>>> 6009064cceed9882426c6727ca0206c2de6feb5a
